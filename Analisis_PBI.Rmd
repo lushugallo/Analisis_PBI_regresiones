@@ -1,0 +1,122 @@
+---
+title: ''
+output:
+  pdf_document: default
+  html_document: default
+date: "2023-07-29"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, results="hide", warning=FALSE, message=FALSE}
+library(readxl)
+library(tidyverse)
+
+```
+
+## Análisis de PBI a través de regresiones
+
+Este mini análisis se realiza en el marco de una práctica de regresiones en la Diplmatura de Ciencia de Datos de la UTN.
+
+```{r}
+PBI <- read_xlsx("../Analisis_PBI/PBI_BM.xlsx")
+POP <- read_xlsx("../Analisis_PBI/Poblacion.xlsx")
+```
+
+eliminamos la notación científica para expresar resultados
+```{r}
+options(scipen = 999)
+```
+
+Con la función summary, tenemos una primera aproximación a las variables del dataframe, sus valores principales y principales datos estadísticos.
+
+```{r pressure}
+summary(PBI)
+```
+
+A continuación, armamos un dataset que solo tome los datos de 2021 y calculamos el top 10 del PBI
+
+```{r}
+PBI_ <- PBI %>% select("Country Name", "2021")
+PBI_top <- PBI_ %>% arrange(desc(`2021`)) %>% head(10) %>% 
+                        rename("PBI_2021" = "2021")
+```
+
+Hacemos una selección de las columnas a usar del DF de población
+
+```{r}
+POP_ <- POP %>% select("Country Name", "2021") %>% rename("Pop_2021" = "2021")
+```
+
+Pasamos a unir la información de población para el top10 de países según PBI
+
+```{r}
+Top <- left_join(PBI_top, POP_, by = "Country Name")
+```
+
+Ahora, procedemos a analizar si existe una correlación entre ambas variables
+
+```{r}
+cor(Top$PBI_2021, Top$Pop_2021)
+```
+
+
+```{r}
+plot(x=Top$PBI_2021, y = Top$Pop_2021, pch=16, col="red", main="¿Se Observa relación en estos datos?")
+```
+
+Ahora calculamos el PBI per cápita y analizamos si existe correlación en este caso
+
+```{r}
+Top_percapita <- Top %>% mutate("PBI_percapita" = PBI_2021/Pop_2021)
+```
+
+```{r}
+cor(Top_percapita$PBI_percapita, Top$Pop_2021)
+```
+
+```{r}
+plot(x=Top_percapita$PBI_percapita, y = Top$Pop_2021, pch=16, col="red", main="¿Se observa relación en estos datos?")
+```
+
+Ahora, analizaremos si existe una correlación entre el paso del tiempo y la evolución del PBI, para el promedio mundial.
+
+```{r}
+PBI_mundial <- PBI %>% filter(`Country Name`== "Mundo") %>%
+  select(-"Country Code", -"Indicator Name", -"Indicator Code")
+```
+
+```{r}
+PBI_mundial_long <- PBI_mundial %>%
+            pivot_longer(cols = 2:64,
+                         names_to = 'year',
+                         values_to = 'PBI') %>%
+            arrange('Country name',year) %>%
+            mutate(year = as.integer(year)) %>%
+            select(-`Country Name`)
+```
+
+```{r}
+cor(PBI_mundial_long$PBI, PBI_mundial_long$year)
+```
+
+```{r}
+plot(x=PBI_mundial_long$PBI, y = PBI_mundial_long$year, pch=16, col="red", main="¿Se observa relación en estos datos?")
+```
+
+Dado que, en principio, existe correlación, armamos un modelo
+
+```{r}
+Modelo_evolucion <- lm(PBI~ year, data = PBI_mundial_long)
+```
+
+```{r}
+summary(Modelo_evolucion)
+```
+
+```{r}
+plot(x=PBI_mundial_long$year, y = PBI_mundial_long$PBI,
+     pch=16, col="red");abline(Modelo_evolucion, col="blue")
+```
